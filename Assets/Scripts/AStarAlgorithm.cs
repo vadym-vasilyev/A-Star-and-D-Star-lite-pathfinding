@@ -1,48 +1,77 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Tilemaps;
+using Priority_Queue;
+using System;
+using System.Linq;
 
 public class AStarAlgorithm {
 
-    private GridController gridController;
-
-    private TilemapGraf graf;
+    readonly GridController gridController;
+    float sleepTime;
 
     IHeuristicEstimate heuristic;
 
-    DictionaryWithSortedValues<Vertex, PathRecord> openList = new DictionaryWithSortedValues<Vertex, PathRecord>();
+    OpenList openList = new OpenList();
     Dictionary<Vertex, PathRecord> closeList = new Dictionary<Vertex, PathRecord>();
 
-    public List<Edge> FindPath(Vertex startNode, Vertex goalNode) {
+    public AStarAlgorithm(GridController gridController, IHeuristicEstimate heuristic, float sleepTime = 0.1f) {
+        this.gridController = gridController;
+        this.sleepTime = sleepTime;
+        this.heuristic = heuristic;
+    }
 
+    public System.Collections.IEnumerator FindPath(System.Action<List<Edge>> callback = null) {
+        gridController.CreateGraf();
+
+        Vertex startNode = gridController.GetStartNodeVertex();
+        Vertex goalNode = gridController.GetGoalNodeVertex();
         openList.Add(startNode, new PathRecord(startNode));
+
+        #region Not a part of algorithm, visualization purposes only
+        gridController.PutOpenNodeMarker(startNode);
+        #endregion
 
         PathRecord current = null;
 
         while (openList.Count > 0) {
-            current = openList.GetmMinValue();
+            current = openList.PopMinValue();
+            #region Not a part of algorithm, visualization purposes only
+            gridController.PutCurrentNodeMarker(current.node);
+            #endregion
+
             if (current.node == goalNode) {
                 //WOW! we found goal!
                 break;
             }
-            ProcessAllEdgesFromCurrent(current, goalNode);
-            openList.Remove(current.node);
+            yield return ProcessAllEdgesFromCurrent(current, goalNode);
+            gridController.RemoveMarker(current.node);
+
             closeList.Add(current.node, current);
+            gridController.PutClosedNodeMarker(current.node);
+            yield return new WaitForSecondsRealtime(sleepTime);
         }
+        List<Edge> path = new List<Edge>();
 
         if (current.node == goalNode) {
-            List<Edge> path = new List<Edge>();
             while (current.node != startNode) {
+                #region Not a part of algorithm, visualization purposes only
+                if (goalNode != current.node) {
+                    gridController.PutPathNodeMarker(current.node);
+                    yield return new WaitForSecondsRealtime(sleepTime);
+                }
+                #endregion
                 path.Add(current.connection.edge);
                 current = current.connection.fromRecord;
             }
             path.Reverse();
-            return path;
         }
-        return null;
+
+        if (callback != null) {
+            callback.Invoke(path);
+        }
     }
 
-    private void ProcessAllEdgesFromCurrent(PathRecord current, Vertex goalNode) {
+    public System.Collections.IEnumerator ProcessAllEdgesFromCurrent(PathRecord current, Vertex goalNode) {
         foreach (Edge edge in current.node.edges) {
 
             PathRecord nextNode;
@@ -50,13 +79,18 @@ public class AStarAlgorithm {
             float endNodeHeuristic;
 
             if (closeList.ContainsKey(edge.to)) {
+                Debug.Log("Contains close list " + gridController.GetPosForVertex(edge.to));
                 nextNode = closeList[edge.to];
                 if (nextNode.costSoFar <= nextNodeCostSoFar) {
                     continue;
                 }
                 endNodeHeuristic = nextNode.etimatedCost - nextNode.costSoFar;
                 closeList.Remove(nextNode.node);
+                #region Not a part of algorithm, visualization purposes only
+                gridController.RemoveMarker(nextNode.node);
+                #endregion
             } else if (openList.ContainsKey(edge.to)) {
+                Debug.Log("Contains open list " + gridController.GetPosForVertex(edge.to));
                 nextNode = openList[edge.to];
                 if (nextNode.costSoFar <= nextNodeCostSoFar) {
                     continue;
@@ -70,15 +104,18 @@ public class AStarAlgorithm {
             nextNode.costSoFar = nextNodeCostSoFar;
             nextNode.etimatedCost = nextNode.costSoFar + endNodeHeuristic;
             nextNode.connection = new PathConnection(edge, current);
-
             if (!openList.ContainsKey(nextNode.node)) {
                 openList.Add(nextNode.node, nextNode);
+                #region Not a part of algorithm, visualization purposes only
+                gridController.PutOpenNodeMarker(nextNode.node);
+                #endregion
             }
+            yield return new WaitForSecondsRealtime(sleepTime);
         }
     }
 }
 
-public class PathRecord : Comparer<PathRecord> {
+public class PathRecord {
     public Vertex node;
     public PathConnection connection;
     public float costSoFar;
@@ -86,10 +123,6 @@ public class PathRecord : Comparer<PathRecord> {
 
     public PathRecord(Vertex node) {
         this.node = node;
-    }
-
-    public override int Compare(PathRecord x, PathRecord y) {
-        return Comparer<float>.Default.Compare(x.etimatedCost, y.etimatedCost);
     }
 
     public override bool Equals(object obj) {
@@ -114,49 +147,35 @@ public class PathConnection {
 }
 
 
-class DictionaryWithSortedValues<T1, T2> {
-    private IDictionary<T1, T2> forward = new Dictionary<T1, T2>();
-    private SortedSet<T2> sortedValues = new SortedSet<T2>();
+class OpenList {
+    IDictionary<Vertex, PathRecord> forward = new Dictionary<Vertex, PathRecord>();
+    SimplePriorityQueue<PathRecord> priorityQueue = new SimplePriorityQueue<PathRecord>();
 
     public int Count { get => forward.Count; }
 
-    public void Add(T1 key, T2 value) {
+    public void Add(Vertex key, PathRecord value) {
         forward.Add(key, value);
-        sortedValues.Add(value);
+        priorityQueue.Enqueue(value, value.etimatedCost);
     }
 
-    public void Remove(T1 key) {
-        T2 Value = forward[key];
+    public void Remove(Vertex key) {
+        PathRecord Value = forward[key];
         forward.Remove(key);
-        sortedValues.Remove(Value);
+        priorityQueue.Remove(Value);
     }
 
-    public T2 GetmMinValue() {
-        return sortedValues.Min;
+    public PathRecord PopMinValue() {
+        PathRecord value = priorityQueue.Dequeue();
+        forward.Remove(value.node);
+        return value;
     }
 
-    public bool ContainsKey(T1 key) {
+    public bool ContainsKey(Vertex key) {
         return forward.ContainsKey(key);
     }
 
-    public T2 this[T1 index] {
+    public PathRecord this[Vertex index] {
         get { return forward[index]; }
         set { forward[index] = value; }
-    }
-}
-
-interface IHeuristicEstimate {
-    float Estimate(Vertex from, Vertex goal);
-}
-
-class EuclideanDistanceHeuristic : IHeuristicEstimate {
-
-    TilemapGraf graf;
-
-    public float Estimate(Vertex from, Vertex goal) {
-        Vector2Int currentPos = graf.getPositionByVertex(from);
-        Vector2Int goalPos = graf.getPositionByVertex(goal);
-        Vector2Int distance = (goalPos - currentPos);
-        return Mathf.Sqrt(distance.x * distance.x + distance.y * distance.y);
     }
 }

@@ -72,4 +72,20 @@ public class Edge {
         this.from = from;
         this.to = to;
     }
+
+    public override bool Equals(object obj) {
+        var edge = obj as Edge;
+        return edge != null &&
+               cost == edge.cost &&
+               EqualityComparer<Vertex>.Default.Equals(from, edge.from) &&
+               EqualityComparer<Vertex>.Default.Equals(to, edge.to);
+    }
+
+    public override int GetHashCode() {
+        var hashCode = 1170585241;
+        hashCode = hashCode * -1521134295 + cost.GetHashCode();
+        hashCode = hashCode * -1521134295 + EqualityComparer<Vertex>.Default.GetHashCode(from);
+        hashCode = hashCode * -1521134295 + EqualityComparer<Vertex>.Default.GetHashCode(to);
+        return hashCode;
+    }
 }
