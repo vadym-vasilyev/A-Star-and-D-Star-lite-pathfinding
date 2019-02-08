@@ -13,7 +13,8 @@ public class GUITilemapController : MonoBehaviour {
     [SerializeField] InputField delayBeforeSteps;
 
     Coroutine pathFindingAlgorithmCoroutine;
-    HeuristicType heuristicType = HeuristicType.Euclidean;
+    HeuristicType heuristicType = (HeuristicType)0;
+    TieBreakerType breakerType = (TieBreakerType)0;
 
     void Start() {
         SetBrushBlocked();
@@ -47,6 +48,10 @@ public class GUITilemapController : MonoBehaviour {
         heuristicType = (HeuristicType)index;
     }
 
+    public void OnTieBrakerDropdownValueChange(int index) {
+        breakerType = (TieBreakerType)index;
+    }
+
     public void ResetCurrentPathfainding() {
         StopCoroutine(pathFindingAlgorithmCoroutine);
         gridController.ClearAllMarkers();
@@ -69,7 +74,9 @@ public class GUITilemapController : MonoBehaviour {
         clearAll.interactable = true;
         gridController.CreateGraf();
         Vector2Int goalPosition = new Vector2Int(gridController.GoalPos.x, gridController.GoalPos.y);
-        IHeuristicEstimate heuristic = HeuristicFactory.GetHeuristic(heuristicType, goalPosition, int.Parse(heuristicCoeffField.text));
+        Vector2Int startPosition = new Vector2Int(gridController.StartPos.x, gridController.StartPos.y);
+
+        IHeuristicEstimate heuristic = HeuristicFactory.СreateHeuristic(heuristicType, breakerType, startPosition, goalPosition, int.Parse(heuristicCoeffField.text));
         float timeDelay = float.Parse(delayBeforeSteps.text);
         AStarAlgorithm algorithm = new AStarAlgorithm(gridController, heuristic, timeDelay);
 

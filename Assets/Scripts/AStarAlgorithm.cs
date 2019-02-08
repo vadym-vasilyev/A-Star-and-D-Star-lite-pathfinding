@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using Priority_Queue;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class AStarAlgorithm {
@@ -21,12 +22,10 @@ public class AStarAlgorithm {
         Vertex startNode = gridController.GetStartNodeVertex();
         Vertex goalNode = gridController.GetGoalNodeVertex();
         openList.Add(startNode, new PathRecord(startNode));
-
+        PathRecord current = null;
         #region Not a part of algorithm, visualization purposes only
         gridController.PutOpenNodeMarker(startNode);
         #endregion
-
-        PathRecord current = null;
 
         while (openList.Count > 0) {
             current = openList.PopMinValue();
@@ -39,15 +38,14 @@ public class AStarAlgorithm {
                 break;
             }
             yield return ProcessAllEdgesFromCurrent(current, goalNode);
-            gridController.RemoveMarker(current.node);
-
             closeList.Add(current.node, current);
-            openList.Remove(current.node);
+            #region Not a part of algorithm, visualization purposes only
+            gridController.RemoveMarker(current.node);
             gridController.PutClosedNodeMarker(current.node);
+            #endregion
             yield return new WaitForSecondsRealtime(sleepTime);
         }
         List<Edge> path = new List<Edge>();
-
         if (current.node == goalNode) {
             while (current.node != startNode) {
                 #region Not a part of algorithm, visualization purposes only
@@ -135,32 +133,15 @@ public class PathConnection {
 }
 
 class OpenList {
-    class PathRecordComparer : IComparer<PathRecord> {
-        public int Compare(PathRecord x, PathRecord y) {
-
-            if (x.node.Equals(y.node)) {
-                return 0;
-            } 
-
-            int result = Comparer<float>.Default.Compare(x.GetCostEstimation(), y.GetCostEstimation());
-            if (result == 0) {
-                result = Comparer<float>.Default.Compare(x.heuristicValue, y.heuristicValue);
-            }
-            if (result == 0) {
-                result = -1;
-            }
-            return result;
-        }
-    }
 
     IDictionary<Vertex, PathRecord> pathRecords = new Dictionary<Vertex, PathRecord>();
-    SortedSet<PathRecord> sortedValues = new SortedSet<PathRecord>(new PathRecordComparer());
+    SimplePriorityQueue<PathRecord> sortedValues = new SimplePriorityQueue<PathRecord>();
 
     public int Count { get => pathRecords.Count; }
 
     public void Add(Vertex key, PathRecord value) {
         pathRecords.Add(key, value);
-        sortedValues.Add(value);
+        sortedValues.Enqueue(value, value.GetCostEstimation());
     }
 
     public void Remove(Vertex key) {
@@ -170,7 +151,9 @@ class OpenList {
     }
 
     public PathRecord PopMinValue() {
-        return sortedValues.Min;
+        PathRecord value = sortedValues.Dequeue();
+        pathRecords.Remove(value.node);
+        return value;
     }
 
     public bool ContainsKey(Vertex key) {
