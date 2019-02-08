@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 using UnityEngine.UI;
@@ -22,8 +23,12 @@ public class GridController : MonoBehaviour {
     [SerializeField] Tile currentNodeMarker;
     [SerializeField] Tile pathNodeMarker;
 
-    Vector3Int startPos = new Vector3Int(-13, 4, 0);
-    Vector3Int goalPos = new Vector3Int(-9, 4, 0);
+    Vector3Int startPos;
+    Vector3Int goalPos;
+
+    //TODO: get default positions from GUI
+    readonly Vector3Int defaultStartPosition = new Vector3Int(-13, 4, 0);
+    readonly Vector3Int defaultGoalPosition = new Vector3Int(-6, -4, 0);
 
     Dictionary<BrushType, Tile> brushes;
     Tile curentBrush;
@@ -37,10 +42,11 @@ public class GridController : MonoBehaviour {
     public TilemapGraf Graf { get => graf; }
 
     public Tile CurrentBrush { get => curentBrush; }
+    public Vector3Int StartPos { get => startPos; set => startPos = value; }
+    public Vector3Int GoalPos { get => goalPos; set => goalPos = value; }
 
     void Awake() {
-        tilemap.SetTile(startPos, startPosTile);
-        tilemap.SetTile(goalPos, goalPosTile);
+        SetDefaultStartAndGoalPositions();
         brushes = new Dictionary<BrushType, Tile>();
         brushes.Add(BrushType.standart, standartCostTile);
         brushes.Add(BrushType.doubleCost, doubleCostTile);
@@ -52,7 +58,7 @@ public class GridController : MonoBehaviour {
     }
 
     void OnMouseOver() {
-        if (Input.GetMouseButtonDown(0)) {
+        if (Input.GetMouseButton(0)) {
             Vector3 tilemapPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             Vector3Int coordinate = tilemap.WorldToCell(tilemapPos);
             coordinate.z = 0;
@@ -77,6 +83,25 @@ public class GridController : MonoBehaviour {
             }
             tilemap.SetTile(coordinate, curentBrush);
         }
+    }
+
+    public void ClearAllMarkers() {
+        inPattFindMode = false;
+        BoundsInt tilemapBounds = tilemap.cellBounds;
+        tilemapBounds.zMin = markerZCoord;
+        tilemapBounds.zMax = markerZCoord + 1;
+        TileBase[] tileArray = Enumerable.Repeat<TileBase>(null, tilemapBounds.size.x * tilemapBounds.size.y * tilemapBounds.size.z).ToArray();
+        tilemap.SetTilesBlock(tilemapBounds, tileArray);
+    }
+
+    public void ResetAll() {
+        ClearAllMarkers();
+        BoundsInt tilemapBounds = tilemap.cellBounds;
+        tilemapBounds.zMin = 0;
+        tilemapBounds.zMax = 1;
+        TileBase[] tileArray = Enumerable.Repeat<TileBase>(standartCostTile, tilemapBounds.size.x * tilemapBounds.size.y * tilemapBounds.size.z).ToArray();
+        tilemap.SetTilesBlock(tilemapBounds, tileArray);
+        SetDefaultStartAndGoalPositions();
     }
 
     public void CreateGraf() {
@@ -192,6 +217,13 @@ public class GridController : MonoBehaviour {
             return 3f;
         }
         throw new ArgumentException("Unknow tile on tilemap");
+    }
+
+    private void SetDefaultStartAndGoalPositions() {
+        startPos = defaultStartPosition;
+        goalPos = defaultGoalPosition;
+        tilemap.SetTile(startPos, startPosTile);
+        tilemap.SetTile(goalPos, goalPosTile);
     }
 }
 

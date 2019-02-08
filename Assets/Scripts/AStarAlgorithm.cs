@@ -1,8 +1,5 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
-using Priority_Queue;
-using System;
-using System.Linq;
 
 public class AStarAlgorithm {
 
@@ -21,8 +18,6 @@ public class AStarAlgorithm {
     }
 
     public System.Collections.IEnumerator FindPath(System.Action<List<Edge>> callback = null) {
-        gridController.CreateGraf();
-
         Vertex startNode = gridController.GetStartNodeVertex();
         Vertex goalNode = gridController.GetGoalNodeVertex();
         openList.Add(startNode, new PathRecord(startNode));
@@ -47,6 +42,7 @@ public class AStarAlgorithm {
             gridController.RemoveMarker(current.node);
 
             closeList.Add(current.node, current);
+            openList.Remove(current.node);
             gridController.PutClosedNodeMarker(current.node);
             yield return new WaitForSecondsRealtime(sleepTime);
         }
@@ -76,33 +72,31 @@ public class AStarAlgorithm {
 
             PathRecord nextNode;
             float nextNodeCostSoFar = current.costSoFar + edge.cost;
-            float endNodeHeuristic;
+            float nextNodeHeuristic;
 
             if (closeList.ContainsKey(edge.to)) {
-                Debug.Log("Contains close list " + gridController.GetPosForVertex(edge.to));
                 nextNode = closeList[edge.to];
                 if (nextNode.costSoFar <= nextNodeCostSoFar) {
                     continue;
                 }
-                endNodeHeuristic = nextNode.etimatedCost - nextNode.costSoFar;
+                nextNodeHeuristic = nextNode.heuristicValue;
                 closeList.Remove(nextNode.node);
                 #region Not a part of algorithm, visualization purposes only
                 gridController.RemoveMarker(nextNode.node);
                 #endregion
             } else if (openList.ContainsKey(edge.to)) {
-                Debug.Log("Contains open list " + gridController.GetPosForVertex(edge.to));
                 nextNode = openList[edge.to];
                 if (nextNode.costSoFar <= nextNodeCostSoFar) {
                     continue;
                 }
-                endNodeHeuristic = nextNode.etimatedCost - nextNode.costSoFar;
+                nextNodeHeuristic = nextNode.heuristicValue;
             } else {
                 nextNode = new PathRecord(edge.to);
-                endNodeHeuristic = heuristic.Estimate(nextNode.node, goalNode);
+                nextNodeHeuristic = heuristic.Estimate(gridController.GetPosForVertex(nextNode.node));
             }
 
             nextNode.costSoFar = nextNodeCostSoFar;
-            nextNode.etimatedCost = nextNode.costSoFar + endNodeHeuristic;
+            nextNode.heuristicValue = nextNodeHeuristic;
             nextNode.connection = new PathConnection(edge, current);
             if (!openList.ContainsKey(nextNode.node)) {
                 openList.Add(nextNode.node, nextNode);
@@ -119,20 +113,14 @@ public class PathRecord {
     public Vertex node;
     public PathConnection connection;
     public float costSoFar;
-    public float etimatedCost;
+    public float heuristicValue;
 
     public PathRecord(Vertex node) {
         this.node = node;
     }
 
-    public override bool Equals(object obj) {
-        var record = obj as PathRecord;
-        return record != null &&
-               EqualityComparer<Vertex>.Default.Equals(node, record.node);
-    }
-
-    public override int GetHashCode() {
-        return -231681771 + EqualityComparer<Vertex>.Default.GetHashCode(node);
+    public float GetCostEstimation() {
+        return costSoFar + heuristicValue;
     }
 }
 
@@ -146,36 +134,51 @@ public class PathConnection {
     }
 }
 
-
 class OpenList {
-    IDictionary<Vertex, PathRecord> forward = new Dictionary<Vertex, PathRecord>();
-    SimplePriorityQueue<PathRecord> priorityQueue = new SimplePriorityQueue<PathRecord>();
+    class PathRecordComparer : IComparer<PathRecord> {
+        public int Compare(PathRecord x, PathRecord y) {
 
-    public int Count { get => forward.Count; }
+            if (x.node.Equals(y.node)) {
+                return 0;
+            } 
+
+            int result = Comparer<float>.Default.Compare(x.GetCostEstimation(), y.GetCostEstimation());
+            if (result == 0) {
+                result = Comparer<float>.Default.Compare(x.heuristicValue, y.heuristicValue);
+            }
+            if (result == 0) {
+                result = -1;
+            }
+            return result;
+        }
+    }
+
+    IDictionary<Vertex, PathRecord> pathRecords = new Dictionary<Vertex, PathRecord>();
+    SortedSet<PathRecord> sortedValues = new SortedSet<PathRecord>(new PathRecordComparer());
+
+    public int Count { get => pathRecords.Count; }
 
     public void Add(Vertex key, PathRecord value) {
-        forward.Add(key, value);
-        priorityQueue.Enqueue(value, value.etimatedCost);
+        pathRecords.Add(key, value);
+        sortedValues.Add(value);
     }
 
     public void Remove(Vertex key) {
-        PathRecord Value = forward[key];
-        forward.Remove(key);
-        priorityQueue.Remove(Value);
+        PathRecord value = pathRecords[key];
+        pathRecords.Remove(key);
+        sortedValues.Remove(value);
     }
 
     public PathRecord PopMinValue() {
-        PathRecord value = priorityQueue.Dequeue();
-        forward.Remove(value.node);
-        return value;
+        return sortedValues.Min;
     }
 
     public bool ContainsKey(Vertex key) {
-        return forward.ContainsKey(key);
+        return pathRecords.ContainsKey(key);
     }
 
     public PathRecord this[Vertex index] {
-        get { return forward[index]; }
-        set { forward[index] = value; }
+        get { return pathRecords[index]; }
+        set { pathRecords[index] = value; }
     }
 }

@@ -33,7 +33,6 @@ public class TilemapGraf {
 }
 
 public class Vertex {
-    internal Vector2Int pos;
     
     public float cost;
     public bool blocked;

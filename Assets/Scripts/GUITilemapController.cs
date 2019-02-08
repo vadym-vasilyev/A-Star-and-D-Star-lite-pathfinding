@@ -1,49 +1,83 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 
-public class GUITilemapController : MonoBehaviour
-{
+public class GUITilemapController : MonoBehaviour {
     [SerializeField] GridController gridController;
     [SerializeField] Image currentBrush;
+
+    [SerializeField] Button pathFind;
+    [SerializeField] Button resetCurrentPath;
+    [SerializeField] Button clearAll;
+
+    [SerializeField] InputField heuristicCoeffField;
+    [SerializeField] InputField delayBeforeSteps;
+
+    Coroutine pathFindingAlgorithmCoroutine;
+    HeuristicType heuristicType = HeuristicType.Euclidean;
 
     void Start() {
         SetBrushBlocked();
     }
 
     public void SetBrushBlocked() {
-        gridController.SetBrush(BrushType.blocked);
-        currentBrush.sprite = gridController.CurrentBrush.sprite;
+        SetBrush(BrushType.blocked);
     }
 
     public void SetBrushStandart() {
-        gridController.SetBrush(BrushType.standart);
-        currentBrush.sprite = gridController.CurrentBrush.sprite;
+        SetBrush(BrushType.standart);
     }
 
     public void SetBrushDoubleCost() {
-        gridController.SetBrush(BrushType.doubleCost);
-        currentBrush.sprite = gridController.CurrentBrush.sprite;
+        SetBrush(BrushType.doubleCost);
     }
 
     public void SetBrushTripleCost() {
-        gridController.SetBrush(BrushType.tripleCost);
-        currentBrush.sprite = gridController.CurrentBrush.sprite;
+        SetBrush(BrushType.tripleCost);
     }
 
     public void SetBrushGoal() {
-        gridController.SetBrush(BrushType.goal);
-        currentBrush.sprite = gridController.CurrentBrush.sprite;
+        SetBrush(BrushType.goal);
     }
 
     public void SetBrushStart() {
-        gridController.SetBrush(BrushType.goal);
-        currentBrush.sprite = gridController.CurrentBrush.sprite;
+        SetBrush(BrushType.start);
+    }
+
+    public void OnHeuristicDropdownValueChange(int index) {
+        heuristicType = (HeuristicType)index;
+    }
+
+    public void ResetCurrentPathfainding() {
+        StopCoroutine(pathFindingAlgorithmCoroutine);
+        gridController.ClearAllMarkers();
+        pathFind.interactable = true;
+        resetCurrentPath.interactable = false;
+        clearAll.interactable = false;
+    }
+
+    public void ClearAll() {
+        StopCoroutine(pathFindingAlgorithmCoroutine);
+        gridController.ResetAll();
+        pathFind.interactable = true;
+        resetCurrentPath.interactable = false;
+        clearAll.interactable = false;
     }
 
     public void StratPathFindinAlgorithm() {
-        AStarAlgorithm algorithm = new AStarAlgorithm(gridController, new ManhattanDistanceHeuristic(gridController.Graf, 1, true));
-        StartCoroutine(algorithm.FindPath());
+        pathFind.interactable = false;
+        resetCurrentPath.interactable = true;
+        clearAll.interactable = true;
+        gridController.CreateGraf();
+        Vector2Int goalPosition = new Vector2Int(gridController.GoalPos.x, gridController.GoalPos.y);
+        IHeuristicEstimate heuristic = HeuristicFactory.GetHeuristic(heuristicType, goalPosition, int.Parse(heuristicCoeffField.text));
+        float timeDelay = float.Parse(delayBeforeSteps.text);
+        AStarAlgorithm algorithm = new AStarAlgorithm(gridController, heuristic, timeDelay);
+
+        pathFindingAlgorithmCoroutine = StartCoroutine(algorithm.FindPath());
+    }
+
+    private void SetBrush(BrushType newBrush) {
+        gridController.SetBrush(newBrush);
+        currentBrush.sprite = gridController.CurrentBrush.sprite;
     }
 }
