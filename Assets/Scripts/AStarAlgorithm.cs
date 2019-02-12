@@ -90,7 +90,7 @@ public class AStarAlgorithm {
                 nextNodeHeuristic = nextNode.heuristicValue;
             } else {
                 nextNode = new PathRecord(edge.to);
-                nextNodeHeuristic = heuristic.Estimate(gridController.GetPosForVertex(nextNode.node));
+                nextNodeHeuristic = heuristic.Estimate(gridController.GetPosForVertex(nextNode.node), gridController.GetPosForVertex(goalNode));
             }
 
             nextNode.costSoFar = nextNodeCostSoFar;

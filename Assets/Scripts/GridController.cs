@@ -35,6 +35,8 @@ public class GridController : MonoBehaviour {
 
     TilemapGraf graf = new TilemapGraf();
 
+
+
     bool inPattFindMode = false;
 
     const int markerZCoord = 1;
@@ -46,7 +48,8 @@ public class GridController : MonoBehaviour {
     public Vector3Int GoalPos { get => goalPos; set => goalPos = value; }
 
     void Awake() {
-        SetDefaultStartAndGoalPositions();
+
+       SetDefaultStartAndGoalPositions();
         brushes = new Dictionary<BrushType, Tile>();
         brushes.Add(BrushType.standart, standartCostTile);
         brushes.Add(BrushType.doubleCost, doubleCostTile);
@@ -145,8 +148,16 @@ public class GridController : MonoBehaviour {
         return graf.GetVertexAtPos(pos);
     }
 
+    public List<Vertex> GetVertextPredecessors(Vertex node) {
+        return graf.GetVertextPredecessors(node);
+    }
+
+    public List<Vertex> GetVertextSuccessors(Vertex node) {
+        return graf.GetVertextSuccessors(node);
+    }
+
     public Vector2Int GetPosForVertex(Vertex vertex) {
-        return graf.getPositionByVertex(vertex);
+        return graf.GetPositionByVertex(vertex);
     }
 
     public Vertex GetStartNodeVertex() {

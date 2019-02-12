@@ -76,11 +76,12 @@ public class GUITilemapController : MonoBehaviour {
         Vector2Int goalPosition = new Vector2Int(gridController.GoalPos.x, gridController.GoalPos.y);
         Vector2Int startPosition = new Vector2Int(gridController.StartPos.x, gridController.StartPos.y);
 
-        IHeuristicEstimate heuristic = HeuristicFactory.СreateHeuristic(heuristicType, breakerType, startPosition, goalPosition, int.Parse(heuristicCoeffField.text));
+        IHeuristicEstimate heuristic = HeuristicFactory.СreateHeuristic(heuristicType, breakerType, startPosition, int.Parse(heuristicCoeffField.text));
         float timeDelay = float.Parse(delayBeforeSteps.text);
-        AStarAlgorithm algorithm = new AStarAlgorithm(gridController, heuristic, timeDelay);
+        //AStarAlgorithm algorithm = new AStarAlgorithm(gridController, heuristic, timeDelay);
+        DStarLiteAlgorithm algorithm = new DStarLiteAlgorithm(gridController, heuristic, timeDelay);
 
-        pathFindingAlgorithmCoroutine = StartCoroutine(algorithm.FindPath());
+        pathFindingAlgorithmCoroutine = StartCoroutine(algorithm.ComputeShortestPath());
     }
 
     private void SetBrush(BrushType newBrush) {

@@ -26,14 +26,22 @@ public class TilemapGraf {
         return vertex;
     }
 
-    public Vector2Int getPositionByVertex(Vertex vertex) {
+    public Vector2Int GetPositionByVertex(Vertex vertex) {
         var pos = grafData.FirstOrDefault(x => x.Value == vertex).Key;
         return pos;
+    }
+
+    public List<Vertex> GetVertextPredecessors(Vertex vertex) {
+        return grafData.Values.Where(v => (v.edges.Exists(e => e.to == vertex))).ToList();
+    }
+
+    public List<Vertex> GetVertextSuccessors(Vertex vertex) {
+        return vertex.edges.Select(e => e.to).ToList();
     }
 }
 
 public class Vertex {
-    
+
     public float cost;
     public bool blocked;
     public List<Edge> edges;

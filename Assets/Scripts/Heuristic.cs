@@ -15,11 +15,11 @@ public enum TieBreakerType {
 }
 
 public interface IHeuristicEstimate {
-    float Estimate(Vector2Int currentPos);
+    float Estimate(Vector2Int currentPos, Vector2Int toPos);
 }
 
 public interface IHeuristicTieBarker {
-    void ApllyTieBraker(Vector2Int currentPos, ref float estimate, float heuristicCoeff);
+    void ApllyTieBraker(Vector2Int currentPos, Vector2Int toPos, ref float estimate, float heuristicCoeff);
 }
 
 public abstract class TieBrakeHeueristic : IHeuristicEstimate {
@@ -31,34 +31,34 @@ public abstract class TieBrakeHeueristic : IHeuristicEstimate {
         this.heuristicCoeff = heuristicCoeff;
     }
 
-    public float Estimate(Vector2Int currentPos) {
-        float heuristicValue = EstimateRaw(currentPos);
-        tieBraker.ApllyTieBraker(currentPos, ref heuristicValue, heuristicCoeff);
+    public float Estimate(Vector2Int currentPos, Vector2Int toPos) {
+        float heuristicValue = EstimateRaw(currentPos, toPos);
+        tieBraker.ApllyTieBraker(currentPos, toPos, ref heuristicValue, heuristicCoeff);
         return heuristicValue;
     }
 
-    public abstract float EstimateRaw(Vector2Int currentPos);
+    public abstract float EstimateRaw(Vector2Int currentPos, Vector2Int toPos);
 }
 
-
+//TODO: change to Builder pattern
 public static class HeuristicFactory {
-    public static IHeuristicEstimate СreateHeuristic(HeuristicType heuristicType, TieBreakerType tieBreaker, Vector2Int startPos, Vector2Int goalPos, float heuristicCoeff) {
+    public static IHeuristicEstimate СreateHeuristic(HeuristicType heuristicType, TieBreakerType tieBreaker, Vector2Int startPos, float heuristicCoeff) {
         switch (heuristicType) {
             case HeuristicType.Euclidean:
-                return new EuclideanDistanceHeuristic(СreateTieBraker(tieBreaker, startPos, goalPos), goalPos, heuristicCoeff);
+                return new EuclideanDistanceHeuristic(СreateTieBraker(tieBreaker, startPos), heuristicCoeff);
             case HeuristicType.Manhattan:
-                return new ManhattanDistanceHeuristic(СreateTieBraker(tieBreaker, startPos, goalPos), goalPos, heuristicCoeff);
+                return new ManhattanDistanceHeuristic(СreateTieBraker(tieBreaker, startPos), heuristicCoeff);
             default:
                 return new NoneHeuristic();
         }
     }
 
-    private static IHeuristicTieBarker СreateTieBraker(TieBreakerType tieBreaker, Vector2Int startPos, Vector2Int goalPos) {
+    private static IHeuristicTieBarker СreateTieBraker(TieBreakerType tieBreaker, Vector2Int startPos) {
         switch (tieBreaker) {
             case TieBreakerType.ScaleHUpwards:
                 return new ScaleHUpwardTieBrak();
             case TieBreakerType.Directed:
-                return new DirectionalTieBraker(startPos, goalPos);
+                return new DirectionalTieBraker(startPos);
             default:
                 return new NoneTieBrak();
         }
@@ -68,64 +68,56 @@ public static class HeuristicFactory {
 
 public class EuclideanDistanceHeuristic : TieBrakeHeueristic {
 
-    Vector2Int goalPos;
 
-    public EuclideanDistanceHeuristic(IHeuristicTieBarker tieBarker, Vector2Int goalPos, float heuristicCoeff) : base(tieBarker, heuristicCoeff) {
-        this.goalPos = goalPos;
+    public EuclideanDistanceHeuristic(IHeuristicTieBarker tieBarker, float heuristicCoeff) : base(tieBarker, heuristicCoeff) {
     }
 
-    public override float EstimateRaw(Vector2Int currentPos) {
-        return Vector2Int.Distance(currentPos, goalPos) * heuristicCoeff;
+    public override float EstimateRaw(Vector2Int currentPos, Vector2Int toPos) {
+        return Vector2Int.Distance(currentPos, toPos) * heuristicCoeff;
     }
 }
 
 public class ManhattanDistanceHeuristic : TieBrakeHeueristic {
 
-    Vector2Int goalPos;
-
-
-    public ManhattanDistanceHeuristic(IHeuristicTieBarker tieBarker, Vector2Int goalPos, float heuristicCoeff) : base(tieBarker, heuristicCoeff) {
-        this.goalPos = goalPos;
+    public ManhattanDistanceHeuristic(IHeuristicTieBarker tieBarker, float heuristicCoeff) : base(tieBarker, heuristicCoeff) {
     }
 
-    public override float EstimateRaw(Vector2Int currentPos) {
-        float estimate = heuristicCoeff * (Mathf.Abs(currentPos.x - goalPos.x) + Mathf.Abs(currentPos.y - goalPos.y));
+    public override float EstimateRaw(Vector2Int currentPos, Vector2Int toPos) {
+        float estimate = heuristicCoeff * (Mathf.Abs(currentPos.x - toPos.x) + Mathf.Abs(currentPos.y - toPos.y));
         return estimate;
     }
 }
 
 public class NoneHeuristic : IHeuristicEstimate {
-    public float Estimate(Vector2Int currentPos) {
+    public float Estimate(Vector2Int currentPos, Vector2Int toPos) {
         return 0f;
     }
 }
 
 public class ScaleHUpwardTieBrak : IHeuristicTieBarker {
-    public void ApllyTieBraker(Vector2Int currentPos, ref float estimate, float heuristicCoeff) {
+    public void ApllyTieBraker(Vector2Int currentPos, Vector2Int toPos, ref float estimate, float heuristicCoeff) {
         estimate *= (1.0f + heuristicCoeff / 1000);
     }
 }
 
 public class DirectionalTieBraker : IHeuristicTieBarker {
-    Vector2Int startPos;
-    Vector2Int goalPos;
+    Vector2Int fromPos;
 
-    public DirectionalTieBraker(Vector2Int startPos, Vector2Int goalPos) {
-        this.startPos = startPos;
-        this.goalPos = goalPos;
+    public DirectionalTieBraker(Vector2Int fromPos) {
+        this.fromPos = fromPos;
     }
 
-    public void ApllyTieBraker(Vector2Int currentPos, ref float estimate, float heuristicCoeff) {
-        float dx1 = currentPos.x - goalPos.x;
-        float dy1 = currentPos.y - goalPos.y;
-        float dx2 = startPos.x - goalPos.x;
-        float dy2 = startPos.y - goalPos.y;
+    public void ApllyTieBraker(Vector2Int currentPos, Vector2Int toPos, ref float estimate, float heuristicCoeff) {
+        float dx1 = currentPos.x - toPos.x;
+        float dy1 = currentPos.y - toPos.y;
+        float dx2 = fromPos.x - toPos.x;
+        float dy2 = fromPos.y - toPos.y;
         float cross = Mathf.Abs(dx1 * dy2 - dx2 * dy1);
         estimate += cross * 0.001f;
     }
 }
 
 public class NoneTieBrak : IHeuristicTieBarker {
-    public void ApllyTieBraker(Vector2Int currentPos, ref float estimate, float heuristicCoeff) {
+    public void ApllyTieBraker(Vector2Int currentPos, Vector2Int toPos, ref float estimate, float heuristicCoeff) {
     }
 }
