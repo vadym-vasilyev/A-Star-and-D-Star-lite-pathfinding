@@ -17,39 +17,21 @@ public class GridController : MonoBehaviour {
 
     [SerializeField] Tile startPosTile;
     [SerializeField] Tile goalPosTile;
-
-    [SerializeField] Tile openListMarker;
-    [SerializeField] Tile closeListMarker;
-    [SerializeField] Tile currentNodeMarker;
-    [SerializeField] Tile pathNodeMarker;
-
-    Vector3Int startPos;
-    Vector3Int goalPos;
+    Dictionary<BrushType, Tile> brushes;
 
     //TODO: get default positions from GUI
     readonly Vector3Int defaultStartPosition = new Vector3Int(-13, 4, 0);
     readonly Vector3Int defaultGoalPosition = new Vector3Int(-6, -4, 0);
 
-    Dictionary<BrushType, Tile> brushes;
-    Tile curentBrush;
-
-    TilemapGraf graf = new TilemapGraf();
-
-
-
-    bool inPattFindMode = false;
-
-    const int markerZCoord = 1;
-
-    public TilemapGraf Graf { get => graf; }
-
-    public Tile CurrentBrush { get => curentBrush; }
-    public Vector3Int StartPos { get => startPos; set => startPos = value; }
-    public Vector3Int GoalPos { get => goalPos; set => goalPos = value; }
+    public Tile CurrentBrush { get; private set; }
+    public Vector3Int StartPos { get; set; }
+    public Vector3Int GoalPos { get; set; }
+    public TilemapGraf Graf { get; set; } = new TilemapGraf();
+    public PathGridState PathGridState { get; set; } = PathGridState.Edit;
 
     void Awake() {
 
-       SetDefaultStartAndGoalPositions();
+        SetDefaultStartAndGoalPositions();
         brushes = new Dictionary<BrushType, Tile>();
         brushes.Add(BrushType.standart, standartCostTile);
         brushes.Add(BrushType.doubleCost, doubleCostTile);
@@ -65,7 +47,7 @@ public class GridController : MonoBehaviour {
             Vector3 tilemapPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             Vector3Int coordinate = tilemap.WorldToCell(tilemapPos);
             coordinate.z = 0;
-            if (inPattFindMode) {
+            if (PathGridState == PathGridState.PathFind) {
                 Debug.Log(coordinate);
                 return;
             }
@@ -73,32 +55,33 @@ public class GridController : MonoBehaviour {
             if (tile == startPosTile || tile == goalPosTile) {
                 return;
             }
-            if (curentBrush == startPosTile) {
-                if (startPos != null) {
-                    tilemap.SetTile(startPos, standartCostTile);
+            if (CurrentBrush == startPosTile) {
+                if (StartPos != null) {
+                    tilemap.SetTile(StartPos, standartCostTile);
                 }
-                startPos = coordinate;
-            } else if (curentBrush == goalPosTile) {
-                if (goalPos != null) {
-                    tilemap.SetTile(goalPos, standartCostTile);
+                StartPos = coordinate;
+            } else if (CurrentBrush == goalPosTile) {
+                if (GoalPos != null) {
+                    tilemap.SetTile(GoalPos, standartCostTile);
                 }
-                goalPos = coordinate;
+                GoalPos = coordinate;
             }
-            tilemap.SetTile(coordinate, curentBrush);
+            tilemap.SetTile(coordinate, CurrentBrush);
+            if (PathGridState == PathGridState.MoveByPath) {
+                UpdateVertex(new Vector2Int(coordinate.x, coordinate.y), CurrentBrush);
+            }
         }
     }
 
-    public void ClearAllMarkers() {
-        inPattFindMode = false;
-        BoundsInt tilemapBounds = tilemap.cellBounds;
-        tilemapBounds.zMin = markerZCoord;
-        tilemapBounds.zMax = markerZCoord + 1;
-        TileBase[] tileArray = Enumerable.Repeat<TileBase>(null, tilemapBounds.size.x * tilemapBounds.size.y * tilemapBounds.size.z).ToArray();
-        tilemap.SetTilesBlock(tilemapBounds, tileArray);
+    public Vertex GetStartVertex() {
+        return Graf.GetVertexAtPos(new Vector2Int(StartPos.x, StartPos.y));
     }
 
-    public void ResetAll() {
-        ClearAllMarkers();
+    public Vertex GetGoalVertex() {
+        return Graf.GetVertexAtPos(new Vector2Int(GoalPos.x, GoalPos.y));
+    }
+
+    public void ClearAllNodes() {
         BoundsInt tilemapBounds = tilemap.cellBounds;
         tilemapBounds.zMin = 0;
         tilemapBounds.zMax = 1;
@@ -107,79 +90,53 @@ public class GridController : MonoBehaviour {
         SetDefaultStartAndGoalPositions();
     }
 
-    public void CreateGraf() {
-        inPattFindMode = true;
+    public void InitGraf() {
         BoundsInt boundsInt = tilemap.cellBounds;
-        graf.InitNodeMap();
+        Graf.InitNodeMap();
         AddAllVertecies(boundsInt);
         AddAllEdges(boundsInt);
     }
 
     public void SetBrush(BrushType brushType) {
-        curentBrush = brushes[brushType];
+        CurrentBrush = brushes[brushType];
     }
 
-    public void PutClosedNodeMarker(Vertex node) {
-        Vector2Int pos = GetPosForVertex(node);
-        tilemap.SetTile(new Vector3Int(pos.x, pos.y, markerZCoord), closeListMarker);
-    }
+    public List<Vertex> UpdateVertex(Vector2Int pos, Tile tile) {
+        Vertex vertexNew = CreateVertex(tile);
+        Vertex vertexOld = Graf.GetVertexAtPos(pos);
 
-    public void PutOpenNodeMarker(Vertex node) {
-        Vector2Int pos = GetPosForVertex(node);
-        tilemap.SetTile(new Vector3Int(pos.x, pos.y, markerZCoord), openListMarker);
-    }
+        if (vertexNew == vertexOld) {
+            return new List<Vertex>();
+        }
 
-    public void PutCurrentNodeMarker(Vertex node) {
-        Vector2Int pos = GetPosForVertex(node);
-        tilemap.SetTile(new Vector3Int(pos.x, pos.y, markerZCoord), currentNodeMarker);
-    }
+        Graf.AddNode(pos, vertexNew);
 
-    public void PutPathNodeMarker(Vertex node) {
-        Vector2Int pos = GetPosForVertex(node);
-        tilemap.SetTile(new Vector3Int(pos.x, pos.y, markerZCoord), pathNodeMarker);
-    }
+        List<Vertex> predecessors = Graf.GetVertextPredecessors(vertexOld);
+        predecessors.ForEach(p => {
+            p.edges.RemoveAll(e => e.to == vertexOld);
+            if (!vertexNew.blocked && !p.blocked) {
+                AddEdge(p, vertexNew);
+                AddEdge(vertexNew, p);
+            }
+        });
 
-    public void RemoveMarker(Vertex node) {
-        Vector2Int pos = GetPosForVertex(node);
-        tilemap.SetTile(new Vector3Int(pos.x, pos.y, markerZCoord), null);
-    }
-
-    public Vertex GetVertexAtPos(Vector2Int pos) {
-        return graf.GetVertexAtPos(pos);
-    }
-
-    public List<Vertex> GetVertextPredecessors(Vertex node) {
-        return graf.GetVertextPredecessors(node);
-    }
-
-    public List<Vertex> GetVertextSuccessors(Vertex node) {
-        return graf.GetVertextSuccessors(node);
-    }
-
-    public Vector2Int GetPosForVertex(Vertex vertex) {
-        return graf.GetPositionByVertex(vertex);
-    }
-
-    public Vertex GetStartNodeVertex() {
-        return GetVertexAtPos(new Vector2Int(startPos.x, startPos.y));
-    }
-
-    public Vertex GetGoalNodeVertex() {
-        return GetVertexAtPos(new Vector2Int(goalPos.x, goalPos.y));
+        List<Vertex> changedVertecies = new List<Vertex>(predecessors);
+        changedVertecies.Add(vertexNew);
+        return changedVertecies;
     }
 
     private void AddAllEdges(BoundsInt boundsInt) {
 
         for (int xPos = boundsInt.xMin; xPos < boundsInt.size.x + boundsInt.xMin; xPos++) {
             for (int yPos = boundsInt.yMin; yPos < boundsInt.size.y + boundsInt.yMin; yPos++) {
-                Vertex vertexFrom = graf.GetVertexAtPos(new Vector2Int(xPos, yPos));
+                Vertex vertexFrom = Graf.GetVertexAtPos(new Vector2Int(xPos, yPos));
                 if (vertexFrom == null || vertexFrom.blocked) {
                     continue;
                 }
-                AddEdge(vertexFrom, graf.GetVertexAtPos(new Vector2Int(xPos - 1, yPos)));
-                AddEdge(vertexFrom, graf.GetVertexAtPos(new Vector2Int(xPos + 1, yPos)));
-                AddEdge(vertexFrom, graf.GetVertexAtPos(new Vector2Int(xPos, yPos - 1)));
-                AddEdge(vertexFrom, graf.GetVertexAtPos(new Vector2Int(xPos, yPos + 1)));
+                AddEdge(vertexFrom, Graf.GetVertexAtPos(new Vector2Int(xPos - 1, yPos)));
+                AddEdge(vertexFrom, Graf.GetVertexAtPos(new Vector2Int(xPos + 1, yPos)));
+                AddEdge(vertexFrom, Graf.GetVertexAtPos(new Vector2Int(xPos, yPos - 1)));
+                AddEdge(vertexFrom, Graf.GetVertexAtPos(new Vector2Int(xPos, yPos + 1)));
             }
         }
     }
@@ -189,7 +146,7 @@ public class GridController : MonoBehaviour {
             return;
         }
         float cost = (vertexTo.cost + vertexFrom.cost) / 2;
-        graf.AddEdge(vertexFrom, vertexTo, cost);
+        Graf.AddEdge(vertexFrom, vertexTo, cost);
     }
 
     private void AddAllVertecies(BoundsInt boundsInt) {
@@ -199,19 +156,23 @@ public class GridController : MonoBehaviour {
                 if (!tile) {
                     continue;
                 }
-                CreateAndAddVertexForTile(xPos, yPos, tile);
+                CreateAndAddVertexForTile(new Vector2Int(xPos, yPos), tile);
             }
         }
     }
 
-    private void CreateAndAddVertexForTile(int xPos, int yPos, Tile tile) {
+    private void CreateAndAddVertexForTile(Vector2Int pos, Tile tile) {
+        Vertex vertex = CreateVertex(tile);
+        Graf.AddNode(pos, vertex);
+    }
+
+    private Vertex CreateVertex(Tile tile) {
         bool blocked = IsTileBlocked(tile);
         float cost = 0f;
         if (!blocked) {
             cost = TileCost(tile);
         }
-        Vertex vertex = new Vertex(cost, blocked, new List<Edge>());
-        graf.AddNode(new Vector2Int(xPos, yPos), vertex);
+        return new Vertex(cost, blocked, new List<Edge>());
     }
 
     private bool IsTileBlocked(Tile tile) {
@@ -231,10 +192,10 @@ public class GridController : MonoBehaviour {
     }
 
     private void SetDefaultStartAndGoalPositions() {
-        startPos = defaultStartPosition;
-        goalPos = defaultGoalPosition;
-        tilemap.SetTile(startPos, startPosTile);
-        tilemap.SetTile(goalPos, goalPosTile);
+        StartPos = defaultStartPosition;
+        GoalPos = defaultGoalPosition;
+        tilemap.SetTile(StartPos, startPosTile);
+        tilemap.SetTile(GoalPos, goalPosTile);
     }
 }
 
@@ -245,4 +206,10 @@ public enum BrushType {
     blocked,
     start,
     goal
+}
+
+public enum PathGridState {
+    Edit,
+    PathFind,
+    MoveByPath
 }

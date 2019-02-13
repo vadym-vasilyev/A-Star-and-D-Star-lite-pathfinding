@@ -3,6 +3,7 @@ using UnityEngine.UI;
 
 public class GUITilemapController : MonoBehaviour {
     [SerializeField] GridController gridController;
+    [SerializeField] GridMarkerController gridMarkerController;
     [SerializeField] Image currentBrush;
 
     [SerializeField] Button pathFind;
@@ -54,7 +55,8 @@ public class GUITilemapController : MonoBehaviour {
 
     public void ResetCurrentPathfainding() {
         StopCoroutine(pathFindingAlgorithmCoroutine);
-        gridController.ClearAllMarkers();
+        gridMarkerController.ClearAllMarkers();
+        gridController.PathGridState = PathGridState.Edit;
         pathFind.interactable = true;
         resetCurrentPath.interactable = false;
         clearAll.interactable = false;
@@ -62,7 +64,9 @@ public class GUITilemapController : MonoBehaviour {
 
     public void ClearAll() {
         StopCoroutine(pathFindingAlgorithmCoroutine);
-        gridController.ResetAll();
+        gridMarkerController.ClearAllMarkers();
+        gridController.ClearAllNodes();
+        gridController.PathGridState = PathGridState.Edit;
         pathFind.interactable = true;
         resetCurrentPath.interactable = false;
         clearAll.interactable = false;
@@ -72,16 +76,16 @@ public class GUITilemapController : MonoBehaviour {
         pathFind.interactable = false;
         resetCurrentPath.interactable = true;
         clearAll.interactable = true;
-        gridController.CreateGraf();
+        gridController.PathGridState = PathGridState.PathFind;
+        gridController.InitGraf();
         Vector2Int goalPosition = new Vector2Int(gridController.GoalPos.x, gridController.GoalPos.y);
         Vector2Int startPosition = new Vector2Int(gridController.StartPos.x, gridController.StartPos.y);
 
         IHeuristicEstimate heuristic = HeuristicFactory.СreateHeuristic(heuristicType, breakerType, startPosition, int.Parse(heuristicCoeffField.text));
         float timeDelay = float.Parse(delayBeforeSteps.text);
-        //AStarAlgorithm algorithm = new AStarAlgorithm(gridController, heuristic, timeDelay);
-        DStarLiteAlgorithm algorithm = new DStarLiteAlgorithm(gridController, heuristic, timeDelay);
+        AStarAlgorithm algorithm = new AStarAlgorithm(gridMarkerController, gridController.Graf, heuristic, timeDelay);
 
-        pathFindingAlgorithmCoroutine = StartCoroutine(algorithm.ComputeShortestPath());
+        pathFindingAlgorithmCoroutine = StartCoroutine(algorithm.FindPath(gridController.GetStartVertex(), gridController.GetGoalVertex()));
     }
 
     private void SetBrush(BrushType newBrush) {

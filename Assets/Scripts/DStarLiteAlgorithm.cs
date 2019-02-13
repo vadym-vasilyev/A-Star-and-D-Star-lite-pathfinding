@@ -6,7 +6,9 @@ using System.Linq;
 using System;
 
 public class DStarLiteAlgorithm {
-    readonly GridController gridController;
+    GridMarkerController gridMarkerController;
+    IVertextPositionResolver positionResolver;
+
     IPriorityQueue<PathRecord, Key> openList = new SimplePriorityQueue<PathRecord, Key>();
     Dictionary<Vertex, PathRecord> pathRecords = new Dictionary<Vertex, PathRecord>();
     IHeuristicEstimate heuristicEstimate;
@@ -18,41 +20,35 @@ public class DStarLiteAlgorithm {
 
     float timeDelay;
     float k = 0;
+    bool pathFound;
 
-    public DStarLiteAlgorithm(GridController gridController, IHeuristicEstimate heuristicEstimate, float timeDelay = 1.0f) {
-        this.gridController = gridController;
+
+    public DStarLiteAlgorithm(GridMarkerController gridMarkerController, IVertextPositionResolver positionResolver, IHeuristicEstimate heuristicEstimate, float timeDelay = 1.0f) {
+        this.gridMarkerController = gridMarkerController;
         this.heuristicEstimate = heuristicEstimate;
-        startNode = new PathRecord(gridController.GetStartNodeVertex());
-        startNode.costSoFar = startNode.rightHandSide = float.PositiveInfinity;
-        pathRecords.Add(startNode.node, startNode);
-
-        goalNode = new PathRecord(gridController.GetGoalNodeVertex());
-        pathRecords.Add(goalNode.node, goalNode);
-        goalNode.key = CalculateKey(goalNode);
-        openList.Enqueue(goalNode, goalNode.key);
+        this.positionResolver = positionResolver;
         this.timeDelay = timeDelay;
     }
 
     private Key CalculateKey(PathRecord pathRecord) {
         float minPath = Mathf.Min(pathRecord.costSoFar, pathRecord.rightHandSide);
-        float heuristic = heuristicEstimate.Estimate(gridController.GetPosForVertex(pathRecord.node), gridController.GetPosForVertex(startNode.node));
+        float heuristic = heuristicEstimate.Estimate(positionResolver.GetPosForVertex(pathRecord.node), positionResolver.GetPosForVertex(startNode.node));
         return new Key(minPath + heuristic + k, minPath);
     }
 
     private List<PathRecord> GetPredecessors(PathRecord pathRecord) {
-        List<Vertex> predecessorNodes = gridController.GetVertextPredecessors(pathRecord.node);
+        List<Vertex> predecessorNodes = positionResolver.GetVertextPredecessors(pathRecord.node);
         return predecessorNodes.Select(n => GetOrCreateIfAbsent(n)).ToList();
     }
 
     private List<PathRecord> GetSuccecessors(PathRecord pathRecord) {
-        List<Vertex> succecessorsNodes = gridController.GetVertextSuccessors(pathRecord.node);
+        List<Vertex> succecessorsNodes = positionResolver.GetVertextSuccessors(pathRecord.node);
         return succecessorsNodes.Select(n => GetOrCreateIfAbsent(n)).ToList();
     }
 
     private PathRecord GetOrCreateIfAbsent(Vertex node) {
         PathRecord predecessor;
-        pathRecords.TryGetValue(node, out predecessor);
-        if (predecessor == null) {
+        if (!pathRecords.TryGetValue(node, out predecessor)) {
             predecessor = new PathRecord(node);
             predecessor.costSoFar = float.PositiveInfinity;
             predecessor.rightHandSide = float.PositiveInfinity;
@@ -75,19 +71,65 @@ public class DStarLiteAlgorithm {
         }
     }
 
-    public IEnumerator ComputeShortestPath() {
+    private void ProcessUnderconsistentNode(PathRecord currentNode) {
+        float costSoFarCurrent = currentNode.costSoFar;
+        currentNode.costSoFar = float.PositiveInfinity;
+        List<PathRecord> predecessorPathRecords = GetPredecessors(currentNode);
+        predecessorPathRecords.Add(currentNode);
+        predecessorPathRecords.ForEach(p => {
+            if (p != goalNode && p.rightHandSide == costSoFarCurrent + GetCost(p, currentNode)) {
+                List<PathRecord> succecessors = GetSuccecessors(p);
+                p.rightHandSide = succecessors.Min(s => s.costSoFar + GetCost(p, s));
+            }
+            UpdateVertex(p);
+        });
+    }
+
+    private void ProcessOverconsistentNode(PathRecord currentNode) {
+        currentNode.costSoFar = currentNode.rightHandSide;
+        List<PathRecord> predecessorPathRecords = GetPredecessors(currentNode);
+        predecessorPathRecords.ForEach(p => {
+            if (p != goalNode) {
+                p.rightHandSide = Mathf.Min(p.rightHandSide, currentNode.costSoFar + GetCost(p, currentNode));
+            }
+            UpdateVertex(p);
+        });
+    }
+
+    private float GetCost(PathRecord from, PathRecord to) {
+        return GetCost(from.node, to.node);
+    }
+
+    private float GetCost(Vertex from, Vertex to) {
+        return from.edges.First(e => e.to == to).cost;
+    }
+
+    public void UpdatePath(Vertex vertextOld, Vertex updatedVertex) {
+        PathRecord changedPathRecord = null;
+        if (pathRecords.TryGetValue(vertextOld, out changedPathRecord)) {
+            if (changedPathRecord != goalNode) {
+                changedPathRecord.node = updatedVertex;
+                List<PathRecord> successors = GetSuccecessors(changedPathRecord);
+                changedPathRecord.rightHandSide = successors.Min(s => s.costSoFar + GetCost(changedPathRecord, s));
+            }
+            UpdateVertex(changedPathRecord);
+        };
+
+    }
+
+    public IEnumerator ComputeShortestPath(System.Action<List<Edge>> pathFind = null) {
 
         PathRecord currentNode;
-
+        pathFound = false;
         while (openList.First.key < CalculateKey(startNode) || startNode.rightHandSide > startNode.costSoFar) {
             if (maxSteps-- == 0) {
                 Debug.Log("can't find path");
-                break;
+                yield break;
             }
             currentNode = openList.Dequeue();
 
             #region Not a part of algorithm, visualization purposes only
-            gridController.PutOpenNodeMarker(currentNode.node);
+            gridMarkerController.PutCurrentNodeMarker(currentNode.node);
             yield return new WaitForSeconds(timeDelay);
             #endregion
 
@@ -102,40 +144,52 @@ public class DStarLiteAlgorithm {
                 ProcessUnderconsistentNode(currentNode);
             }
         }
+        pathFound = true;
     }
 
-    private void ProcessUnderconsistentNode(PathRecord currentNode) {
-        float costSoFarCurrent = currentNode.costSoFar;
-        currentNode.costSoFar = float.PositiveInfinity;
-        pathRecords[currentNode.node] = currentNode;
-        List<PathRecord> predecessorPathRecords = GetPredecessors(currentNode);
-        predecessorPathRecords.Add(currentNode);
-        predecessorPathRecords.ForEach(p => {
-            if (p != goalNode && p.rightHandSide == costSoFarCurrent + p.node.edges.First(e => e.to == currentNode.node).cost) {
-                List<PathRecord> succecessors = GetSuccecessors(p);
-                p.rightHandSide = succecessors.Min(s => s.costSoFar + p.node.edges.First(e => e.to == currentNode.node).cost);
-                pathRecords[p.node] = p;
+    public IEnumerator MoveByPath(Vertex starVertex, Vertex goalVertex) {
+
+        startNode = new PathRecord(starVertex);
+        startNode.costSoFar = startNode.rightHandSide = float.PositiveInfinity;
+        pathRecords.Add(startNode.node, startNode);
+
+        goalNode = new PathRecord(goalVertex);
+        pathRecords.Add(goalNode.node, goalNode);
+        goalNode.key = CalculateKey(goalNode);
+        openList.Enqueue(goalNode, goalNode.key);
+
+        yield return ComputeShortestPath();
+
+        if (pathFound) {
+
+            PathRecord currentNode = startNode;
+            PathRecord nextNode = currentNode;
+
+            #region Not a part of algorithm, visualization purposes only
+            gridMarkerController.PutPathNodeMarker(currentNode.node);
+            yield return new WaitForSeconds(timeDelay);
+            #endregion
+
+            while (nextNode != goalNode && !pathFound) {
+                List<PathRecord> succecessors = GetSuccecessors(nextNode);
+                nextNode = succecessors.Aggregate((s1, s2) => s1.costSoFar + GetCost(nextNode, s1) < s2.costSoFar + GetCost(nextNode, s2) ? s1 : s2);
+                #region Not a part of algorithm, visualization purposes only
+                gridMarkerController.PutPathNodeMarker(nextNode.node);
+                yield return new WaitForSeconds(timeDelay);
+                #endregion
+
+                if (float.IsPositiveInfinity(nextNode.costSoFar) || Mathf.Abs(nextNode.rightHandSide - (GetCost(currentNode, nextNode) + nextNode.costSoFar)) > Mathf.Epsilon) {
+                    k += heuristicEstimate.Estimate(positionResolver.GetPosForVertex(currentNode.node), positionResolver.GetPosForVertex(startNode.node));
+                    startNode = currentNode;
+                    yield return ComputeShortestPath();
+                } else {
+                    currentNode = nextNode;
+                }
             }
-            UpdateVertex(p);
-        });
+        }
     }
-
-    private void ProcessOverconsistentNode(PathRecord currentNode) {
-        currentNode.costSoFar = currentNode.rightHandSide;
-        pathRecords[currentNode.node] = currentNode;
-        List<PathRecord> predecessorPathRecords = GetPredecessors(currentNode);
-        predecessorPathRecords.ForEach(p => {
-            if (p != goalNode) {
-                p.rightHandSide = Mathf.Min(p.rightHandSide, currentNode.costSoFar + p.node.edges.First(e => e.to == currentNode.node).cost);
-                pathRecords[p.node] = p;
-            }
-            UpdateVertex(p);
-        });
-    }
-
-    public class PathRecord {
+    class PathRecord {
         public Vertex node;
-        public PathConnection connection;
         public float costSoFar;
         public float rightHandSide;
         public Key key;
@@ -154,17 +208,7 @@ public class DStarLiteAlgorithm {
         }
     }
 
-    public class PathConnection {
-        public Edge edge;
-        public PathRecord fromRecord;
-
-        public PathConnection(Edge edge, PathRecord fromRecord) {
-            this.edge = edge;
-            this.fromRecord = fromRecord;
-        }
-    }
-
-    public class Key : IComparable<Key> {
+    class Key : IComparable<Key> {
         float k1;
         float k2;
 

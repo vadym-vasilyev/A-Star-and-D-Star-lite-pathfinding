@@ -4,33 +4,33 @@ using UnityEngine;
 
 public class AStarAlgorithm {
 
-    readonly GridController gridController;
-    float sleepTime;
-
+    GridMarkerController gridMarkerController;
+    IVertextPositionResolver positionResolver;
     IHeuristicEstimate heuristic;
+    readonly float sleepTime;
 
     OpenList openList = new OpenList();
     Dictionary<Vertex, PathRecord> closeList = new Dictionary<Vertex, PathRecord>();
 
-    public AStarAlgorithm(GridController gridController, IHeuristicEstimate heuristic, float sleepTime = 0.1f) {
-        this.gridController = gridController;
+    public AStarAlgorithm(GridMarkerController gridMarkerController, IVertextPositionResolver positionResolver, IHeuristicEstimate heuristic , float sleepTime = 0.1f) {
+        this.gridMarkerController = gridMarkerController;
         this.sleepTime = sleepTime;
         this.heuristic = heuristic;
+        this.positionResolver = positionResolver;
     }
 
-    public System.Collections.IEnumerator FindPath(System.Action<List<Edge>> callback = null) {
-        Vertex startNode = gridController.GetStartNodeVertex();
-        Vertex goalNode = gridController.GetGoalNodeVertex();
+    public System.Collections.IEnumerator FindPath(Vertex startNode, Vertex goalNode, System.Action<List<Edge>> callback = null) {
+
         openList.Add(startNode, new PathRecord(startNode));
         PathRecord current = null;
         #region Not a part of algorithm, visualization purposes only
-        gridController.PutOpenNodeMarker(startNode);
+        gridMarkerController.PutOpenNodeMarker(startNode);
         #endregion
 
         while (openList.Count > 0) {
             current = openList.PopMinValue();
             #region Not a part of algorithm, visualization purposes only
-            gridController.PutCurrentNodeMarker(current.node);
+            gridMarkerController.PutCurrentNodeMarker(current.node);
             #endregion
 
             if (current.node == goalNode) {
@@ -40,8 +40,8 @@ public class AStarAlgorithm {
             yield return ProcessAllEdgesFromCurrent(current, goalNode);
             closeList.Add(current.node, current);
             #region Not a part of algorithm, visualization purposes only
-            gridController.RemoveMarker(current.node);
-            gridController.PutClosedNodeMarker(current.node);
+            gridMarkerController.RemoveMarker(current.node);
+            gridMarkerController.PutClosedNodeMarker(current.node);
             #endregion
             yield return new WaitForSecondsRealtime(sleepTime);
         }
@@ -50,7 +50,7 @@ public class AStarAlgorithm {
             while (current.node != startNode) {
                 #region Not a part of algorithm, visualization purposes only
                 if (goalNode != current.node) {
-                    gridController.PutPathNodeMarker(current.node);
+                    gridMarkerController.PutPathNodeMarker(current.node);
                     yield return new WaitForSecondsRealtime(sleepTime);
                 }
                 #endregion
@@ -65,7 +65,7 @@ public class AStarAlgorithm {
         }
     }
 
-    public System.Collections.IEnumerator ProcessAllEdgesFromCurrent(PathRecord current, Vertex goalNode) {
+    private System.Collections.IEnumerator ProcessAllEdgesFromCurrent(PathRecord current, Vertex goalNode) {
         foreach (Edge edge in current.node.edges) {
 
             PathRecord nextNode;
@@ -80,7 +80,7 @@ public class AStarAlgorithm {
                 nextNodeHeuristic = nextNode.heuristicValue;
                 closeList.Remove(nextNode.node);
                 #region Not a part of algorithm, visualization purposes only
-                gridController.RemoveMarker(nextNode.node);
+                gridMarkerController.RemoveMarker(nextNode.node);
                 #endregion
             } else if (openList.ContainsKey(edge.to)) {
                 nextNode = openList[edge.to];
@@ -90,7 +90,7 @@ public class AStarAlgorithm {
                 nextNodeHeuristic = nextNode.heuristicValue;
             } else {
                 nextNode = new PathRecord(edge.to);
-                nextNodeHeuristic = heuristic.Estimate(gridController.GetPosForVertex(nextNode.node), gridController.GetPosForVertex(goalNode));
+                nextNodeHeuristic = heuristic.Estimate(positionResolver.GetPosForVertex(nextNode.node), positionResolver.GetPosForVertex(goalNode));
             }
 
             nextNode.costSoFar = nextNodeCostSoFar;
@@ -99,69 +99,69 @@ public class AStarAlgorithm {
             if (!openList.ContainsKey(nextNode.node)) {
                 openList.Add(nextNode.node, nextNode);
                 #region Not a part of algorithm, visualization purposes only
-                gridController.PutOpenNodeMarker(nextNode.node);
+                gridMarkerController.PutOpenNodeMarker(nextNode.node);
                 #endregion
             }
             yield return new WaitForSecondsRealtime(sleepTime);
         }
     }
-}
 
-public class PathRecord {
-    public Vertex node;
-    public PathConnection connection;
-    public float costSoFar;
-    public float heuristicValue;
+    class PathRecord {
+        public Vertex node;
+        public PathConnection connection;
+        public float costSoFar;
+        public float heuristicValue;
 
-    public PathRecord(Vertex node) {
-        this.node = node;
+        public PathRecord(Vertex node) {
+            this.node = node;
+        }
+
+        public float GetCostEstimation() {
+            return costSoFar + heuristicValue;
+        }
     }
 
-    public float GetCostEstimation() {
-        return costSoFar + heuristicValue;
-    }
-}
+    class PathConnection {
+        public Edge edge;
+        public PathRecord fromRecord;
 
-public class PathConnection {
-    public Edge edge;
-    public PathRecord fromRecord;
-
-    public PathConnection(Edge edge, PathRecord fromRecord) {
-        this.edge = edge;
-        this.fromRecord = fromRecord;
-    }
-}
-
-class OpenList {
-
-    IDictionary<Vertex, PathRecord> pathRecords = new Dictionary<Vertex, PathRecord>();
-    SimplePriorityQueue<PathRecord> sortedValues = new SimplePriorityQueue<PathRecord>();
-
-    public int Count { get => pathRecords.Count; }
-
-    public void Add(Vertex key, PathRecord value) {
-        pathRecords.Add(key, value);
-        sortedValues.Enqueue(value, value.GetCostEstimation());
+        public PathConnection(Edge edge, PathRecord fromRecord) {
+            this.edge = edge;
+            this.fromRecord = fromRecord;
+        }
     }
 
-    public void Remove(Vertex key) {
-        PathRecord value = pathRecords[key];
-        pathRecords.Remove(key);
-        sortedValues.Remove(value);
-    }
+    class OpenList {
 
-    public PathRecord PopMinValue() {
-        PathRecord value = sortedValues.Dequeue();
-        pathRecords.Remove(value.node);
-        return value;
-    }
+        IDictionary<Vertex, PathRecord> pathRecords = new Dictionary<Vertex, PathRecord>();
+        SimplePriorityQueue<PathRecord> sortedValues = new SimplePriorityQueue<PathRecord>();
 
-    public bool ContainsKey(Vertex key) {
-        return pathRecords.ContainsKey(key);
-    }
+        public int Count { get => pathRecords.Count; }
 
-    public PathRecord this[Vertex index] {
-        get { return pathRecords[index]; }
-        set { pathRecords[index] = value; }
+        public void Add(Vertex key, PathRecord value) {
+            pathRecords.Add(key, value);
+            sortedValues.Enqueue(value, value.GetCostEstimation());
+        }
+
+        public void Remove(Vertex key) {
+            PathRecord value = pathRecords[key];
+            pathRecords.Remove(key);
+            sortedValues.Remove(value);
+        }
+
+        public PathRecord PopMinValue() {
+            PathRecord value = sortedValues.Dequeue();
+            pathRecords.Remove(value.node);
+            return value;
+        }
+
+        public bool ContainsKey(Vertex key) {
+            return pathRecords.ContainsKey(key);
+        }
+
+        public PathRecord this[Vertex index] {
+            get { return pathRecords[index]; }
+            set { pathRecords[index] = value; }
+        }
     }
 }

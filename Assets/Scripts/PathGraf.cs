@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-public class TilemapGraf {
+public class TilemapGraf : IVertextPositionResolver{
     Dictionary<Vector2Int, Vertex> grafData = new Dictionary<Vector2Int, Vertex>();
 
     public void InitNodeMap() {
@@ -26,17 +26,17 @@ public class TilemapGraf {
         return vertex;
     }
 
-    public Vector2Int GetPositionByVertex(Vertex vertex) {
-        var pos = grafData.FirstOrDefault(x => x.Value == vertex).Key;
-        return pos;
-    }
-
     public List<Vertex> GetVertextPredecessors(Vertex vertex) {
         return grafData.Values.Where(v => (v.edges.Exists(e => e.to == vertex))).ToList();
     }
 
     public List<Vertex> GetVertextSuccessors(Vertex vertex) {
         return vertex.edges.Select(e => e.to).ToList();
+    }
+
+    public Vector2Int GetPosForVertex(Vertex vertex) {
+        var pos = grafData.FirstOrDefault(x => x.Value == vertex).Key;
+        return pos;
     }
 }
 
@@ -45,6 +45,12 @@ public class Vertex {
     public float cost;
     public bool blocked;
     public List<Edge> edges;
+
+    public Vertex(Vertex vertex) {
+        cost = vertex.cost;
+        blocked = vertex.blocked;
+        edges = vertex.edges;
+    }
 
     public Vertex(float cost, bool blocked, List<Edge> edges) {
         this.cost = cost;
