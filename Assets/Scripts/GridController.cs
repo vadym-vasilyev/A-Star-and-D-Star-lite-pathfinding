@@ -21,13 +21,15 @@ public class GridController : MonoBehaviour {
 
     //TODO: get default positions from GUI
     readonly Vector3Int defaultStartPosition = new Vector3Int(-13, 4, 0);
-    readonly Vector3Int defaultGoalPosition = new Vector3Int(-6, -4, 0);
+    readonly Vector3Int defaultGoalPosition = new Vector3Int(0, 4, 0);
 
     public Tile CurrentBrush { get; private set; }
     public Vector3Int StartPos { get; set; }
     public Vector3Int GoalPos { get; set; }
     public TilemapGraf Graf { get; set; } = new TilemapGraf();
     public PathGridState PathGridState { get; set; } = PathGridState.Edit;
+
+    public Action<List<Vertex>> OnVerteciesUpdate;
 
     void Awake() {
 
@@ -68,7 +70,8 @@ public class GridController : MonoBehaviour {
             }
             tilemap.SetTile(coordinate, CurrentBrush);
             if (PathGridState == PathGridState.MoveByPath) {
-                UpdateVertex(new Vector2Int(coordinate.x, coordinate.y), CurrentBrush);
+                List<Vertex> updatedVertexes = UpdateVertex(new Vector2Int(coordinate.x, coordinate.y), CurrentBrush);
+                OnVerteciesUpdate?.Invoke(updatedVertexes);
             }
         }
     }
@@ -101,28 +104,39 @@ public class GridController : MonoBehaviour {
         CurrentBrush = brushes[brushType];
     }
 
+    //Since Coroutine executed in main game loop and not an separate thread  - it's safe change value directly
     public List<Vertex> UpdateVertex(Vector2Int pos, Tile tile) {
-        Vertex vertexNew = CreateVertex(tile);
-        Vertex vertexOld = Graf.GetVertexAtPos(pos);
+        Vertex vertex = Graf.GetVertexAtPos(pos);
 
-        if (vertexNew == vertexOld) {
+        bool blocked = IsTileBlocked(tile);
+        float cost = 0f;
+        if (!blocked) {
+            cost = TileCost(tile);
+        }
+
+        if (Mathf.Abs(vertex.cost - cost) < Mathf.Epsilon && vertex.blocked == blocked) {
             return new List<Vertex>();
         }
 
-        Graf.AddNode(pos, vertexNew);
+        vertex.cost = cost;
+        vertex.blocked = blocked;
+        vertex.edges.Clear();
 
-        List<Vertex> predecessors = Graf.GetVertextPredecessors(vertexOld);
+        List<Vertex> changedVertecies = ApplyChangesToPredecessors(vertex);
+        changedVertecies.Add(vertex);
+        return changedVertecies;
+    }
+
+    private List<Vertex> ApplyChangesToPredecessors(Vertex vertex) {
+        List<Vertex> predecessors = Graf.GetVertextPredecessors(vertex);
         predecessors.ForEach(p => {
-            p.edges.RemoveAll(e => e.to == vertexOld);
-            if (!vertexNew.blocked && !p.blocked) {
-                AddEdge(p, vertexNew);
-                AddEdge(vertexNew, p);
+            p.edges.RemoveAll(e => e.to == vertex);
+            if (!vertex.blocked && !p.blocked) {
+                AddEdge(p, vertex);
+                AddEdge(vertex, p);
             }
         });
-
-        List<Vertex> changedVertecies = new List<Vertex>(predecessors);
-        changedVertecies.Add(vertexNew);
-        return changedVertecies;
+        return predecessors;
     }
 
     private void AddAllEdges(BoundsInt boundsInt) {
@@ -162,17 +176,16 @@ public class GridController : MonoBehaviour {
     }
 
     private void CreateAndAddVertexForTile(Vector2Int pos, Tile tile) {
-        Vertex vertex = CreateVertex(tile);
-        Graf.AddNode(pos, vertex);
+        Graf.AddNode(CreateVertex(pos, tile));
     }
 
-    private Vertex CreateVertex(Tile tile) {
+    private Vertex CreateVertex(Vector2Int pos, Tile tile) {
         bool blocked = IsTileBlocked(tile);
         float cost = 0f;
         if (!blocked) {
             cost = TileCost(tile);
         }
-        return new Vertex(cost, blocked, new List<Edge>());
+        return new Vertex(pos, cost, blocked, new List<Edge>());
     }
 
     private bool IsTileBlocked(Tile tile) {

@@ -4,15 +4,15 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-public class TilemapGraf : IVertextPositionResolver{
+public class TilemapGraf : IVertexOperations {
     Dictionary<Vector2Int, Vertex> grafData = new Dictionary<Vector2Int, Vertex>();
 
     public void InitNodeMap() {
         grafData.Clear();
     }
 
-    public void AddNode(Vector2Int pos, Vertex vertex) {
-        grafData[pos] = vertex;
+    public void AddNode(Vertex vertex) {
+        grafData[vertex.pos] = vertex;
     }
 
     public void AddEdge(Vertex nodeFrom, Vertex nodeTo, float cost) {
@@ -33,26 +33,19 @@ public class TilemapGraf : IVertextPositionResolver{
     public List<Vertex> GetVertextSuccessors(Vertex vertex) {
         return vertex.edges.Select(e => e.to).ToList();
     }
-
-    public Vector2Int GetPosForVertex(Vertex vertex) {
-        var pos = grafData.FirstOrDefault(x => x.Value == vertex).Key;
-        return pos;
-    }
 }
 
 public class Vertex {
-
+    readonly public Vector2Int pos;
     public float cost;
     public bool blocked;
     public List<Edge> edges;
 
-    public Vertex(Vertex vertex) {
-        cost = vertex.cost;
-        blocked = vertex.blocked;
-        edges = vertex.edges;
+    public Vertex(Vector2Int pos) {
+        this.pos = pos;
     }
 
-    public Vertex(float cost, bool blocked, List<Edge> edges) {
+    public Vertex(Vector2Int pos, float cost, bool blocked, List<Edge> edges) : this(pos) {
         this.cost = cost;
         this.blocked = blocked;
         this.edges = edges;
@@ -61,17 +54,15 @@ public class Vertex {
     public override bool Equals(object obj) {
         var vertex = obj as Vertex;
         return vertex != null &&
-               cost == vertex.cost &&
-               blocked == vertex.blocked &&
-               EqualityComparer<List<Edge>>.Default.Equals(edges, vertex.edges);
+               pos.Equals(vertex.pos);
     }
 
     public override int GetHashCode() {
-        var hashCode = -1898663744;
-        hashCode = hashCode * -1521134295 + cost.GetHashCode();
-        hashCode = hashCode * -1521134295 + blocked.GetHashCode();
-        hashCode = hashCode * -1521134295 + EqualityComparer<List<Edge>>.Default.GetHashCode(edges);
-        return hashCode;
+        return 991532785 + EqualityComparer<Vector2Int>.Default.GetHashCode(pos);
+    }
+
+    public override string ToString() {
+        return "Pos: " + pos;
     }
 }
 

@@ -5205,7 +5205,7 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7089116260347568657}
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
@@ -5285,5 +5285,9 @@ MonoBehaviour:
   tilemap: {fileID: 7089116259675169790}
   openListMarker: {fileID: 11400000, guid: 926f57b531e551f4ea06bbdf02cfd81d, type: 2}
   closeListMarker: {fileID: 11400000, guid: 77e071af41011234ab153c73755c8160, type: 2}
-  currentNodeMarker: {fileID: 11400000, guid: e5c71d7c64d5e414393e569ad3fddf8d, type: 2}
+  currentNodeMarker: {fileID: 11400000, guid: af45e74ba825f0e4c8d53c8c1254f18f, type: 2}
+  currentMoveNodeMarker: {fileID: 11400000, guid: 70429cfe77260494d80fd7741e000d67,
+    type: 2}
   pathNodeMarker: {fileID: 11400000, guid: b05eb34348e2f514692ce00fee428e9a, type: 2}
+  movedPathNodeMarker: {fileID: 11400000, guid: 8281ac8503b89b9498fbc18c1ba36184,
+    type: 2}

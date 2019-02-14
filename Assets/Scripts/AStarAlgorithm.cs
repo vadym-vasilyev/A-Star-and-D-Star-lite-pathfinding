@@ -5,26 +5,24 @@ using UnityEngine;
 public class AStarAlgorithm {
 
     GridMarkerController gridMarkerController;
-    IVertextPositionResolver positionResolver;
     IHeuristicEstimate heuristic;
     readonly float sleepTime;
 
     OpenList openList = new OpenList();
     Dictionary<Vertex, PathRecord> closeList = new Dictionary<Vertex, PathRecord>();
 
-    public AStarAlgorithm(GridMarkerController gridMarkerController, IVertextPositionResolver positionResolver, IHeuristicEstimate heuristic , float sleepTime = 0.1f) {
+    public AStarAlgorithm(GridMarkerController gridMarkerController, IHeuristicEstimate heuristic, float sleepTime = 0.1f) {
         this.gridMarkerController = gridMarkerController;
         this.sleepTime = sleepTime;
         this.heuristic = heuristic;
-        this.positionResolver = positionResolver;
     }
 
-    public System.Collections.IEnumerator FindPath(Vertex startNode, Vertex goalNode, System.Action<List<Edge>> callback = null) {
+    public System.Collections.IEnumerator FindPath(Vertex startVertex, Vertex goalVertex, System.Action<List<Edge>> callback = null) {
 
-        openList.Add(startNode, new PathRecord(startNode));
+        openList.Add(startVertex, new PathRecord(startVertex));
         PathRecord current = null;
         #region Not a part of algorithm, visualization purposes only
-        gridMarkerController.PutOpenNodeMarker(startNode);
+        gridMarkerController.PutOpenNodeMarker(startVertex);
         #endregion
 
         while (openList.Count > 0) {
@@ -33,11 +31,11 @@ public class AStarAlgorithm {
             gridMarkerController.PutCurrentNodeMarker(current.node);
             #endregion
 
-            if (current.node == goalNode) {
+            if (current.node == goalVertex) {
                 //WOW! we found goal!
                 break;
             }
-            yield return ProcessAllEdgesFromCurrent(current, goalNode);
+            yield return ProcessAllEdgesFromCurrent(current, goalVertex);
             closeList.Add(current.node, current);
             #region Not a part of algorithm, visualization purposes only
             gridMarkerController.RemoveMarker(current.node);
@@ -46,10 +44,10 @@ public class AStarAlgorithm {
             yield return new WaitForSecondsRealtime(sleepTime);
         }
         List<Edge> path = new List<Edge>();
-        if (current.node == goalNode) {
-            while (current.node != startNode) {
+        if (current.node == goalVertex) {
+            while (current.node != startVertex) {
                 #region Not a part of algorithm, visualization purposes only
-                if (goalNode != current.node) {
+                if (goalVertex != current.node) {
                     gridMarkerController.PutPathNodeMarker(current.node);
                     yield return new WaitForSecondsRealtime(sleepTime);
                 }
@@ -65,7 +63,7 @@ public class AStarAlgorithm {
         }
     }
 
-    private System.Collections.IEnumerator ProcessAllEdgesFromCurrent(PathRecord current, Vertex goalNode) {
+    private System.Collections.IEnumerator ProcessAllEdgesFromCurrent(PathRecord current, Vertex goalVertex) {
         foreach (Edge edge in current.node.edges) {
 
             PathRecord nextNode;
@@ -90,7 +88,7 @@ public class AStarAlgorithm {
                 nextNodeHeuristic = nextNode.heuristicValue;
             } else {
                 nextNode = new PathRecord(edge.to);
-                nextNodeHeuristic = heuristic.Estimate(positionResolver.GetPosForVertex(nextNode.node), positionResolver.GetPosForVertex(goalNode));
+                nextNodeHeuristic = heuristic.Estimate(nextNode.node.pos, goalVertex.pos);
             }
 
             nextNode.costSoFar = nextNodeCostSoFar;
