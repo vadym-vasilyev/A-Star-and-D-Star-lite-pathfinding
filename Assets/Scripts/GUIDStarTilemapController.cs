@@ -89,7 +89,7 @@ public class GUIDStarTilemapController : MonoBehaviour {
         float timeDelay = float.Parse(delayBeforeSteps.text);
         float moveTimeDelay = float.Parse(delayBeforeMove.text);
 
-        DStarLiteAlgorithm algorithm = new DStarLiteAlgorithm(gridMarkerController, gridController.Graf, heuristic, timeDelay);
+        DStarLiteAlgorithm algorithm = new DStarLiteAlgorithm(gridMarkerController, gridController.Graph, heuristic, timeDelay);
 
         gridController.OnVerteciesUpdate = (vertecies) => { vertecies.ForEach(v => algorithm.UpdatePath(v)); };
 

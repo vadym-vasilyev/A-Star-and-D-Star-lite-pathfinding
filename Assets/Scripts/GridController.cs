@@ -26,7 +26,7 @@ public class GridController : MonoBehaviour {
     public Tile CurrentBrush { get; private set; }
     public Vector3Int StartPos { get; set; }
     public Vector3Int GoalPos { get; set; }
-    public TilemapGraf Graf { get; set; } = new TilemapGraf();
+    public TilemapGraph Graph { get; set; } = new TilemapGraph();
     public PathGridState PathGridState { get; set; } = PathGridState.Edit;
 
     public Action<List<Vertex>> OnVerteciesUpdate;
@@ -77,11 +77,11 @@ public class GridController : MonoBehaviour {
     }
 
     public Vertex GetStartVertex() {
-        return Graf.GetVertexAtPos(new Vector2Int(StartPos.x, StartPos.y));
+        return Graph.GetVertexAtPos(new Vector2Int(StartPos.x, StartPos.y));
     }
 
     public Vertex GetGoalVertex() {
-        return Graf.GetVertexAtPos(new Vector2Int(GoalPos.x, GoalPos.y));
+        return Graph.GetVertexAtPos(new Vector2Int(GoalPos.x, GoalPos.y));
     }
 
     public void ClearAllNodes() {
@@ -95,7 +95,7 @@ public class GridController : MonoBehaviour {
 
     public void InitGraf() {
         BoundsInt boundsInt = tilemap.cellBounds;
-        Graf.InitNodeMap();
+        Graph.InitNodeMap();
         AddAllVertecies(boundsInt);
         AddAllEdges(boundsInt);
     }
@@ -106,7 +106,7 @@ public class GridController : MonoBehaviour {
 
     //Since Coroutine executed in main game loop and not an separate thread  - it's safe change value directly
     public List<Vertex> UpdateVertex(Vector2Int pos, Tile tile) {
-        Vertex vertex = Graf.GetVertexAtPos(pos);
+        Vertex vertex = Graph.GetVertexAtPos(pos);
 
         bool blocked = IsTileBlocked(tile);
         float cost = 0f;
@@ -128,7 +128,7 @@ public class GridController : MonoBehaviour {
     }
 
     private List<Vertex> ApplyChangesToPredecessors(Vertex vertex) {
-        List<Vertex> predecessors = Graf.GetVertextPredecessors(vertex);
+        List<Vertex> predecessors = Graph.GetVertextPredecessors(vertex);
         predecessors.ForEach(p => {
             p.edges.RemoveAll(e => e.to == vertex);
             if (!vertex.blocked && !p.blocked) {
@@ -143,14 +143,14 @@ public class GridController : MonoBehaviour {
 
         for (int xPos = boundsInt.xMin; xPos < boundsInt.size.x + boundsInt.xMin; xPos++) {
             for (int yPos = boundsInt.yMin; yPos < boundsInt.size.y + boundsInt.yMin; yPos++) {
-                Vertex vertexFrom = Graf.GetVertexAtPos(new Vector2Int(xPos, yPos));
+                Vertex vertexFrom = Graph.GetVertexAtPos(new Vector2Int(xPos, yPos));
                 if (vertexFrom == null || vertexFrom.blocked) {
                     continue;
                 }
-                AddEdge(vertexFrom, Graf.GetVertexAtPos(new Vector2Int(xPos - 1, yPos)));
-                AddEdge(vertexFrom, Graf.GetVertexAtPos(new Vector2Int(xPos + 1, yPos)));
-                AddEdge(vertexFrom, Graf.GetVertexAtPos(new Vector2Int(xPos, yPos - 1)));
-                AddEdge(vertexFrom, Graf.GetVertexAtPos(new Vector2Int(xPos, yPos + 1)));
+                AddEdge(vertexFrom, Graph.GetVertexAtPos(new Vector2Int(xPos - 1, yPos)));
+                AddEdge(vertexFrom, Graph.GetVertexAtPos(new Vector2Int(xPos + 1, yPos)));
+                AddEdge(vertexFrom, Graph.GetVertexAtPos(new Vector2Int(xPos, yPos - 1)));
+                AddEdge(vertexFrom, Graph.GetVertexAtPos(new Vector2Int(xPos, yPos + 1)));
             }
         }
     }
@@ -160,7 +160,7 @@ public class GridController : MonoBehaviour {
             return;
         }
         float cost = (vertexTo.cost + vertexFrom.cost) / 2;
-        Graf.AddEdge(vertexFrom, vertexTo, cost);
+        Graph.AddEdge(vertexFrom, vertexTo, cost);
     }
 
     private void AddAllVertecies(BoundsInt boundsInt) {
@@ -176,7 +176,7 @@ public class GridController : MonoBehaviour {
     }
 
     private void CreateAndAddVertexForTile(Vector2Int pos, Tile tile) {
-        Graf.AddNode(CreateVertex(pos, tile));
+        Graph.AddNode(CreateVertex(pos, tile));
     }
 
     private Vertex CreateVertex(Vector2Int pos, Tile tile) {

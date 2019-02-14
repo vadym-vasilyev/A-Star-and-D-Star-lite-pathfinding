@@ -4,15 +4,15 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-public class TilemapGraf : IVertexOperations {
-    Dictionary<Vector2Int, Vertex> grafData = new Dictionary<Vector2Int, Vertex>();
+public class TilemapGraph : IVertexOperations {
+    Dictionary<Vector2Int, Vertex> graphData = new Dictionary<Vector2Int, Vertex>();
 
     public void InitNodeMap() {
-        grafData.Clear();
+        graphData.Clear();
     }
 
     public void AddNode(Vertex vertex) {
-        grafData[vertex.pos] = vertex;
+        graphData[vertex.pos] = vertex;
     }
 
     public void AddEdge(Vertex nodeFrom, Vertex nodeTo, float cost) {
@@ -22,12 +22,12 @@ public class TilemapGraf : IVertexOperations {
 
     public Vertex GetVertexAtPos(Vector2Int pos) {
         Vertex vertex;
-        grafData.TryGetValue(pos, out vertex);
+        graphData.TryGetValue(pos, out vertex);
         return vertex;
     }
 
     public List<Vertex> GetVertextPredecessors(Vertex vertex) {
-        return grafData.Values.Where(v => (v.edges.Exists(e => e.to == vertex))).ToList();
+        return graphData.Values.Where(v => (v.edges.Exists(e => e.to == vertex))).ToList();
     }
 
     public List<Vertex> GetVertextSuccessors(Vertex vertex) {
